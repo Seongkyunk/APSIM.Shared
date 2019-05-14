@@ -19,14 +19,14 @@ namespace APSIM.Shared.Utilities
     /// </summary>
     public class SocketServer
     {
-        /// <summary>Thread signal.</summary>
-        private static ManualResetEvent allDone = new ManualResetEvent(false);
-
         /// <summary>A container of commands</summary>
         private Dictionary<string, EventHandler<CommandArgs>> commands = new Dictionary<string, EventHandler<CommandArgs>>();
 
         /// <summary>Should the server keep listening for socket connections?</summary>
         private bool keepListening = true;
+
+        /// <summary>Has the server stopped listening?</summary>
+        private bool stoppedListening = false;
 
         /// <summary>Error event argument class.</summary>
         public class ErrorArgs : EventArgs
@@ -102,17 +102,17 @@ namespace APSIM.Shared.Utilities
                 if (Error != null)
                     Error.Invoke(this, new ErrorArgs() { message = err.ToString() });
             }
+            stoppedListening = true;
         }
 
         /// <summary>Stop listening for socket connections</summary>
         public void StopListening()
         {
             keepListening = false;
-            allDone.Set();
-
             // Open a socket connection with dummy data (0) so that the ServerSocket.Accept
             // method in 'StartListening' method will return an then the method exits cleanly.
             Send("127.0.0.1", 2222, 0);
+            SpinWait.SpinUntil(() => stoppedListening);
         }
 
         /// <summary>Accept a socket connection</summary>
@@ -218,6 +218,8 @@ namespace APSIM.Shared.Utilities
             {
                 MemoryStream s = new MemoryStream();
                 Byte[] bData = EncodeData(obj);
+                if (!server.Connected)
+                    return null;
                 server.GetStream().Write(bData, 0, bData.Length);
                 Byte[] bytes = new Byte[65536];
 
@@ -229,6 +231,8 @@ namespace APSIM.Shared.Utilities
                 bool allDone = false;
                 do
                 {
+                    if (!server.Connected)
+                        return null;
                     NumBytesRead = server.GetStream().Read(bytes, 0, bytes.Length);
                     s.Write(bytes, 0, NumBytesRead);
                     totalNumBytes += NumBytesRead;

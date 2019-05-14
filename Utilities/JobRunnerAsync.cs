@@ -97,6 +97,7 @@ namespace APSIM.Shared.Utilities
                             }
                             if (JobCompleted != null)
                                 JobCompleted.Invoke(this, jobCompleteArguments);
+                            jobs.JobCompleted(jobCompleteArguments);
 
                             lock (this)
                                 numberTasksRunning--;
@@ -106,15 +107,16 @@ namespace APSIM.Shared.Utilities
                 // All jobs now completed
                 while (numberTasksRunning > 0)
                     Thread.Sleep(200);
-                jobs.Completed();
             }
             catch (Exception err)
             { 
                 exceptionThrown = err;
             }
 
+            var args = new AllCompletedArgs() { exceptionThrown = exceptionThrown };
             if (AllJobsCompleted != null)
-                AllJobsCompleted.Invoke(this, new AllCompletedArgs() { exceptionThrown = exceptionThrown });
+                AllJobsCompleted.Invoke(this, args);
+            jobs.AllCompleted(args);
         }
     }
 }

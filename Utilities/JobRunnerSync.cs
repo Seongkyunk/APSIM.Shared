@@ -69,19 +69,20 @@ namespace APSIM.Shared.Utilities
                     }
                     if (JobCompleted != null)
                         JobCompleted.Invoke(this, jobCompleteArguments);
+                    jobs.JobCompleted(jobCompleteArguments);
 
                     job = jobs.GetNextJobToRun();
                 }
-
-                jobs.Completed();
             }
             catch (Exception err)
             {
                 exceptionThrown = err;
             }
 
+            var args = new AllCompletedArgs() { exceptionThrown = exceptionThrown };
+            jobs.AllCompleted(args);
             allJobsFinished = true;
-            AllJobsCompleted?.Invoke(this, new AllCompletedArgs() { exceptionThrown = exceptionThrown });
+            AllJobsCompleted?.Invoke(this, args);
         }
 
         /// <summary>Stop all jobs currently running</summary>
