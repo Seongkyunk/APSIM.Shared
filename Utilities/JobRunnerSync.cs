@@ -6,6 +6,7 @@
 namespace APSIM.Shared.Utilities
 {
     using System;
+    using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -79,7 +80,9 @@ namespace APSIM.Shared.Utilities
                 exceptionThrown = err;
             }
 
-            var args = new AllCompletedArgs() { exceptionThrown = exceptionThrown };
+            var args = new AllCompletedArgs();
+            if (exceptionThrown != null)
+                args.exceptionsThrown = new List<Exception>() { exceptionThrown };
             jobs.AllCompleted(args);
             allJobsFinished = true;
             AllJobsCompleted?.Invoke(this, args);

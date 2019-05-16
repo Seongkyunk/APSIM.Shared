@@ -1,6 +1,7 @@
 ﻿namespace APSIM.Shared.Utilities
 {
     using System;
+    using System.Collections.Generic;
 
     /// <summary>Arguments for JobComplete event</summary>
     public class JobCompleteArgs
@@ -15,8 +16,8 @@
     /// <summary>Arguments for AllJobsCompleted event</summary>
     public class AllCompletedArgs
     {
-        /// <summary>The exception thrown by the worker thread. Can be null for no exception.</summary>
-        public Exception exceptionThrown;
+        /// <summary>The exceptions (if any) thrown by the worker thread. Can be null for no exceptions.</summary>
+        public List<Exception> exceptionsThrown;
     }
 
     /// <summary>An interface for running jobs</summary>
