@@ -217,37 +217,40 @@ namespace APSIM.Shared.Utilities
             using (TcpClient server = new TcpClient(serverName, Convert.ToInt32(port)))
             {
                 MemoryStream s = new MemoryStream();
-                Byte[] bData = EncodeData(obj);
-                if (!server.Connected)
-                    return null;
-                server.GetStream().Write(bData, 0, bData.Length);
-                Byte[] bytes = new Byte[65536];
-
-                // Loop to receive all the data sent by the client.
-                int numBytesExpected = 0;
-                int totalNumBytes = 0;
-                int i = 0;
-                int NumBytesRead;
-                bool allDone = false;
-                do
+                //do
                 {
-                    if (!server.Connected)
-                        return null;
-                    NumBytesRead = server.GetStream().Read(bytes, 0, bytes.Length);
-                    s.Write(bytes, 0, NumBytesRead);
-                    totalNumBytes += NumBytesRead;
+                    Byte[] bData = EncodeData(obj);
+                    server.GetStream().Write(bData, 0, bData.Length);
+                    Byte[] bytes = new Byte[65536];
 
-                    if (numBytesExpected == 0 && totalNumBytes > 4)
-                        numBytesExpected = BitConverter.ToInt32(bytes, 0);
-                    if (numBytesExpected + 4 == totalNumBytes)
-                        allDone = true;
+                    // Loop to receive all the data sent by the client.
+                    int numBytesExpected = 0;
+                    int totalNumBytes = 0;
+                    int i = 0;
+                    int NumBytesRead;
+                    bool allDone = false;
+                    do
+                    {
+                        NumBytesRead = server.GetStream().Read(bytes, 0, bytes.Length);
+                        s.Write(bytes, 0, NumBytesRead);
+                        totalNumBytes += NumBytesRead;
 
-                    i++;
+                        if (numBytesExpected == 0 && totalNumBytes > 4)
+                            numBytesExpected = BitConverter.ToInt32(bytes, 0);
+                        if (numBytesExpected + 4 == totalNumBytes)
+                            allDone = true;
+
+                        i++;
+                    }
+                    while (NumBytesRead > 0 && !allDone);
                 }
-                while (!allDone);
+                //while (s.Length == 0);
 
                 // Decode the bytes and return.
-                return DecodeData(s.ToArray());
+                if (s.Length > 0)
+                    return DecodeData(s.ToArray());
+                else
+                    return null;
             }
         }
 

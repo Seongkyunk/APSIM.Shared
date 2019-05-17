@@ -10,7 +10,7 @@
     public class JobManagerCollection : IJobManager
     {
         /// <summary>The collection of jobs.</summary>
-        private List<JobManagerWrapper> jobs = new List<JobManagerWrapper>();
+        private List<JobManagerWrapper> jobWrappers = new List<JobManagerWrapper>();
 
         /// <summary>Index into the jobs list to pull the next job from.</summary>
         private int jobIndex;
@@ -20,7 +20,7 @@
         public JobManagerCollection(List<IJobManager> jobsToRun)
         {
             foreach (var jobManager in jobsToRun)
-                jobs.Add(new JobManagerWrapper() { JobManager = jobManager });
+                jobWrappers.Add(new JobManagerWrapper(jobManager));
             jobIndex = 0;
         }
 
@@ -28,36 +28,41 @@
         /// <returns>Job to run or null if no more.</returns>
         public IRunnable GetNextJobToRun()
         {
-            if (jobIndex < jobs.Count)
+            if (jobIndex < jobWrappers.Count)
             {
-                var jobToRun = jobs[jobIndex].JobManager.GetNextJobToRun();
-                while (jobToRun == null && jobIndex < jobs.Count)
+                IRunnable jobToRun;
+                do
                 {
-                    jobs[jobIndex].AllJobsHaveBeenGenerated = true;
-                    jobs[jobIndex].AllComplete();
-                    jobIndex++;
-                    if (jobIndex < jobs.Count)
-                        jobToRun = jobs[jobIndex].JobManager.GetNextJobToRun();
+                    jobToRun = jobWrappers[jobIndex].GetNextJobToRun();
+                    if (jobToRun == null && jobIndex < jobWrappers.Count)
+                    {
+                        lock (this)
+                            if (jobWrappers[jobIndex].AllJobsHaveBeenGenerated)
+                                jobIndex++;
+                    }
                 }
+                while (jobToRun == null && jobIndex < jobWrappers.Count);
 
-                if (jobToRun != null)
-                    jobs[jobIndex].RunningJobs.Add(jobToRun);
                 return jobToRun;
             }
             else
                 return null;
         }
 
+        /// <summary>
+        /// Job has been competed. 
+        /// </summary>
+        /// <param name="args"></param>
         void IJobManager.JobCompleted(JobCompleteArgs args)
         {
-            var job = jobs.Find(j => j.RunningJobs.Contains(args.job));
-            job.JobManager.JobCompleted(args);
-            lock (job)
-            {
-                job.JobCompleted(args);
-            }
+            var jobWrapper = jobWrappers.Find(j => j.ContainsJob(args.job));
+            jobWrapper.JobCompleted(args);
         }
 
+        /// <summary>
+        /// All jobs have been completed.
+        /// </summary>
+        /// <param name="args"></param>
         void IJobManager.AllCompleted(AllCompletedArgs args)
         {
             
@@ -68,21 +73,62 @@
         /// </summary>
         private class JobManagerWrapper
         {
-            public IJobManager JobManager { get; set; }
-            public List<IRunnable> RunningJobs { get; set; } = new List<IRunnable>();
-            public bool AllJobsHaveBeenGenerated;
+            private IJobManager jobManager;
+            private List<IRunnable> runningJobs = new List<IRunnable>();
+            private bool allCompletedHasBeenCalled;
+
+            /// <summary>Constructor.</summary>
+            /// <param name="manager">Job manager.</param>
+            public JobManagerWrapper(IJobManager manager)
+            {
+                jobManager = manager;
+            }
+
+            /// <summary>Have all jobs been generated?</summary>
+            public bool AllJobsHaveBeenGenerated { get; private set; }
+
+            /// <summary>Does this instance contain the specified job?</summary>
+            /// <param name="job">The job to search for.</param>
+            public bool ContainsJob(IRunnable job)
+            {
+                lock (this)
+                    return runningJobs.Contains(job);
+            }
+
+            /// <summary>Return the next job to run or null if nothing to run.</summary>
+            /// <returns>Job to run or null if no more.</returns>
+            public IRunnable GetNextJobToRun()
+            {
+                var job = jobManager.GetNextJobToRun();
+                if (job == null)
+                {
+                    AllJobsHaveBeenGenerated = true;
+                    AllComplete();
+                }
+                else
+                    lock (this)
+                        runningJobs.Add(job);
+                return job;
+            }
 
             public void JobCompleted(JobCompleteArgs args)
             {
-                RunningJobs.Remove(args.job);
+                jobManager.JobCompleted(args);
+                lock (this)
+                    runningJobs.Remove(args.job);
                 AllComplete();
             }
 
             public void AllComplete()
             {
-                if (RunningJobs.Count == 0 && AllJobsHaveBeenGenerated)
+                if (AllJobsHaveBeenGenerated && runningJobs.Count == 0)
                 {
-                    JobManager.AllCompleted(new AllCompletedArgs());
+                    lock (this)
+                        if (!allCompletedHasBeenCalled)
+                        {
+                            allCompletedHasBeenCalled = true;
+                            jobManager.AllCompleted(new AllCompletedArgs());
+                        }
                 }
             }
         }
